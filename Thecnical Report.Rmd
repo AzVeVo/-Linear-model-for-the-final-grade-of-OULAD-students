@@ -1,0 +1,423 @@
+---
+title: "Modelos Estadísticos Aplicados I"
+subtitle: "Reporte de Proyecto Final"
+author: Apupalo Laura, Espinel Hellen, Zúñiga Pablo
+output: pdf_document
+date: "`r Sys.Date()`"
+fontsize: 12pt # 10pt,11pt
+geometry: margin = 2.5cm
+---
+
+__Introducción__
+
+El continuo avance de las tecnologias invita a estudiantes y docentes a desarrollar herramientas de aprendizaje y  a adaptarse, entre estas herramientas están los módulos virtuales ya que estos brindan una posibilidad de preparación educativa en distintos niveles. A menudo se requiere conocer el rendimiento de los estudiantes en este tipo de plataformas, para saber en dónde se puede mejorar la calidad de educación. 
+
+Estos módulos han permitido reconocer a los estudiantes por medio de interacciones con la plataforma. Sin embargo, se debe considerar que las calificaciones o el puntaje de un estudiante no solo depende del conocimiento que se tenga sobre el uso de estos módulos sino también existen aspectos que pueden influenciar tales como el género, la región de donde proviene, status económico, entre otros. Por medio de esta investigación se pretende obtener cuales son las variables más influyentes en la nota final de un estudiante. 
+
+__Metodología__
+
+Con los conocimientos adquiridos durante el desarrollo del curso se busca crear un modelo para explicar el puntaje en la calificación final(score_exam).
+
+Identificando variables influyentes para el modelamiento, además de verificar el cumplimiento de los supuestos, para que este sea validado y permitirnos realizar inferencias en base a un modelo final.
+
+Se poseen los datos de la interacción de los estudiantes con el Entrono de Aprendizaje Virtual(VLE) durante los cursos impartidos por Open University Learning Analytics Dataset (OULAD) correspondiente al módulo DDD para el año 2014 durante su presentación a artir de Octubre, el conjunto de datos incluye 11 variables de las cuales mediante un graficos scatterplot se identificaron que las variables wscore_tmas, wscore_tmas, final_result son influyentes para explicar el resultado final, sus  intercacciones se pueden ver en el siguiente scatterplot:
+
+```{r,echo=F,include=FALSE}
+library(dplyr)
+```
+
+```{r, echo=F,include=FALSE}
+dataOULAD <- read.table("OULAD_data_unified.txt",header = T)
+dataOULAD <- dataOULAD %>% filter(code_module== "DDD", code_presentation == "2013J")
+dataOULAD <- dataOULAD[,-c(1,2,3,15)]
+#any(is.na(dataOULAD$sum_click_total)) Verificar valores NA
+
+ind <- which(is.na(dataOULAD[,10])) #indice de valores NA para la variable score_exam
+dataOULAD <- dataOULAD[-ind,] #eliminamos las observaciones NA 
+
+dataOULAD$imd_band[dataOULAD$imd_band == ""] <- NA # se remplazan los valores en blanco de la variable imd_band por NA´S
+dataOULAD$imd_band[dataOULAD$imd_band == "10-20"] <- "10-20%" # se corrige errores de tipeo de la clase "10-20%" de ka variable imd_band
+ind <- which(is.na(dataOULAD[,4])) # indice de valores NA para la variable imd_band
+dataOULAD <- dataOULAD[-ind,] #se eliminan las observaciones NA de la variable imd_band
+
+
+ind <- which(is.na(dataOULAD[,11])) # indice de valores NA para la variable wscore_tmas
+dataOULAD <- dataOULAD[-ind,] #se eliminan las observaciones NA de la variable wscore_tmas
+
+#VARIABLES CATEGORICAS
+#gender (nominal)
+#region (nominal)
+#highest_education (nominal)
+#imd_band (ordinal??)
+#age_band (ordinal)
+#disability (nominal)
+#final_result (nominal)
+
+#VOLVEMOS FACTOR LAS VARIABLES CATEGORICAS
+dataOULAD$gender <- as.factor(dataOULAD$gender)
+dataOULAD$region <- as.factor(dataOULAD$region)
+dataOULAD$highest_education <- as.factor(dataOULAD$highest_education)
+dataOULAD$imd_band <- as.factor(dataOULAD$imd_band)
+dataOULAD$age_band <- as.factor(dataOULAD$age_band)
+dataOULAD$disability <- as.factor(dataOULAD$disability)
+dataOULAD$final_result <- as.factor(dataOULAD$final_result)
+
+
+#RECODIFICACIÓN DE LA VARIABLE REGION
+
+dataOULAD <- dataOULAD %>%
+  mutate(region = case_when(region == "South Region" ~ "South",
+                            region == "East Midlands Region" ~ "East",
+                            region == "East Anglian Region" ~ "East",
+                            region == "South East Region" ~ "South",
+                            region == "North Region" ~ "North",
+                            region == "London Region" ~ "South",
+                            region == "Scotland" ~ "North",
+                            region == "North Western Region" ~ "North",
+                            region == "Ireland" ~ "West",
+                            region == "Yorkshire Region" ~ "North",
+                            region == "South West Region" ~ "South",
+                            region == "Wales" ~ "South",
+                            region == "North Region" ~ "North",
+                            region== "West Midlands Region" ~ "West"))
+dataOULAD$region <- as.factor(dataOULAD$region)
+
+#Codificacion para variable Ordinal imd_band
+
+#MODELO CON VARIABLES CATEGORICAS ORDINALES
+levels(as.factor(dataOULAD$imd_band))
+dataOULAD <- dataOULAD %>%
+  mutate(imd_band = case_when(imd_band == "0-10%" ~ 1,
+                              imd_band == "10-20%" ~ 2,
+                              imd_band == "20-30%" ~ 3,
+                              imd_band == "30-40%" ~ 4,
+                              imd_band == "40-50%" ~ 5,
+                              imd_band == "50-60%" ~ 6,
+                              imd_band == "60-70%" ~ 7,
+                              imd_band == "70-80%" ~ 8,
+                              imd_band == "80-90%" ~ 9,
+                              imd_band == "90-100%" ~ 10))
+
+
+
+#Codificacion para la variable sum_click_total
+dataOULAD <- dataOULAD %>%
+  mutate(sum_click_total = case_when(sum_click_total<852~ "Low",
+                                     852<=sum_click_total&sum_click_total<1419 ~ "Moderate",
+                                     1419<=sum_click_total&sum_click_total<= 15931 ~ "High"))
+dataOULAD$sum_click_total <- as.factor(dataOULAD$sum_click_total)
+```
+
+```{r, echo=F}
+pairs(dataOULAD[,c(2,9,10,11,12)], panel = function(x, y) {
+    points(x, y)
+    lines(lowess(x, y), col = "red")
+})
+```
+
+__Modelos Propuestos__
+
+Se proponen los siguientes Modelos una vez se han retirado las observaciones atípicas no influyentes:
+
+```{r, echo=F, include=F}
+#Modelos-----------------------------------------------------------------------------------------------------
+mod1 <-lm(score_exam~.-gender-highest_education-age_band-imd_band-num_of_prev_attempts-studied_credits-disability,data= dataOULAD)
+summary(mod1)
+par(mfrow=c(2,2))
+plot(mod1)
+
+#Identiicamos observaciones atípicas influyentes
+
+resd1 <- MASS::studres(mod1)
+indatip <- which(abs((resd1)) > 2.5)
+length(indatip) #Existen 15 observaciones atípicas
+dataOULAD <- dataOULAD[-indatip,]
+
+dff <- dffits(mod1)
+indics <- which(dff > 1)
+length(indics) #Por lo cual no hay observaciones atípicas influyentes
+
+
+#Modelo sin observaciones atípicas no influyentes
+
+mod1 <-lm(score_exam~.-gender-highest_education-age_band-imd_band-num_of_prev_attempts-studied_credits-disability,data= dataOULAD)
+summary(mod1)
+par(mfrow=c(2,2))
+plot(mod1)
+
+#COMPROBACION FORMAL DE LOS SUPUESTOS
+library(lmtest)
+library(car)
+
+resd1 <- residuals(mod1)
+m1 <-mean(resd1) #existe linealidad
+n1 <-tseries::jarque.bera.test(resd1) # existe normalidad en los residuos
+h1 <-lmtest::bptest(mod1) # No Existe homocedasticidad
+
+#Correccion de los supuestos usando MCP
+
+#Modelo 1
+#definir pesos para usar
+wt<- 1/lm(abs(mod1$residuals)~mod1$fitted.values)$fitted.values^2
+length(wt)
+nrow(dataOULAD[-1,])
+wlsmod1 <- lm (score_exam~.-gender-highest_education-age_band-imd_band-num_of_prev_attempts-studied_credits-disability,data= dataOULAD,weights= wt)
+summary(wlsmod1)
+par(mfrow=c(2,2))
+plot(wlsmod1)
+par(mfrow=c(1,2))
+
+m1w <- mean(residuals(wlsmod1)) # Exsiste linealidad 
+n1w <- tseries::jarque.bera.test(wlsmod1$residuals) # Existe Normalidad en los residuos
+h1w <- lmtest::bptest(wlsmod1) # Existe Homocedasticidad
+
+##############################################################################################################
+
+#SAgregando efectos de Interaccion 
+
+mod2<-lm(formula = score_exam ~ region + final_result + wscore_tmas + 
+                 sum_click_total + final_result:wscore_tmas + wscore_tmas:sum_click_total, 
+               data = dataOULAD)
+#Identiicamos observaciones atípicas influyentes
+
+resd2 <- MASS::studres(mod2)
+indatip <- which(abs((resd2)) > 2.5)
+length(indatip) #Existen 15 observaciones atípicas
+dataOULAD <- dataOULAD[-indatip,]
+
+dff <- dffits(mod2)
+indics <- which(dff > 1)
+length(indics) #Por lo cual no hay observaciones atípicas influyentes
+
+mod2 <- lm(score_exam ~ region + final_result + wscore_tmas + 
+             sum_click_total + final_result:wscore_tmas + wscore_tmas:sum_click_total, 
+           data = dataOULAD)
+summary(mod2)
+par(mfrow=c(2,2))
+plot(mod2)
+
+
+resd2 <- residuals(mod2)
+(m2 <- mean(resd2)) #existe linealidad
+(n2 <- tseries::jarque.bera.test(resd2)) # No existe normalidad en los residuos
+(h2 <- lmtest::bptest(mod2)) # No Existe homocedasticidad
+
+#Correccion de los supuestos usando MCP
+#Modelo2
+
+wt<- 1/lm(abs(mod2$residuals)~mod2$fitted.values)$fitted.values^2
+
+wlsmod2 <- lm (score_exam ~ region + final_result + wscore_tmas + 
+                 sum_click_total + final_result:wscore_tmas + wscore_tmas:sum_click_total, 
+               data = dataOULAD,weights = wt)
+summary(wlsmod2)
+par(mfrow=c(2,2))
+(m2w <- mean(residuals(wlsmod2))) # Exsiste linealidad 
+(n2w <- tseries::jarque.bera.test(wlsmod2$residuals)) # No Existe Normalidad en los residuos
+(h2w <- lmtest::bptest(wlsmod2)) # Existe Homocedasticidad
+###############################################################################################################
+
+mod3 <- lm(score_exam ~ region + final_result + wscore_tmas + 
+             sum_click_total + final_result:wscore_tmas + wscore_tmas:sum_click_total+I((wscore_tmas-mean(wscore_tmas))^2),data= dataOULAD)
+summary(mod3)
+par(mfrow=c(2,2))
+plot(mod3)
+
+#Identiicamos observaciones atípicas influyentes
+
+resd3 <- MASS::studres(mod3)
+indatip <- which(abs((resd3)) > 2.5)
+length(indatip) #Existen 15 observaciones atípicas
+dataOULAD <- dataOULAD[-indatip,]
+
+dff <- dffits(mod3)
+indics <- which(dff > 1)
+length(indics) #Por lo cual no hay observaciones atípicas influyentes
+
+mod3 <- lm(score_exam ~ region + final_result + wscore_tmas + 
+             sum_click_total + final_result:wscore_tmas + wscore_tmas:sum_click_total+I((wscore_tmas-mean(wscore_tmas))^2),data= dataOULAD)
+summary(mod3)
+par(mfrow=c(2,2))
+plot(mod3)
+
+#COMPROBACION FORMAL DE LOS SUPUESTOS
+
+resd3 <- residuals(mod3)
+m3 <- mean(resd3) #existe linealidad
+n3 <- tseries::jarque.bera.test(resd3) # No existe normalidad en los residuos
+h3 <- lmtest::bptest(mod3) #Existe heterocedasticidad
+
+
+#Correccion de los supuestos usando MCP
+#Modelo3
+wt<- 1/lm(abs(mod3$residuals)~mod3$fitted.values)$fitted.values^2
+
+wlsmod3 <- lm (score_exam ~ region + final_result + wscore_tmas + 
+                 sum_click_total + final_result:wscore_tmas + wscore_tmas:sum_click_total+I((wscore_tmas-mean(wscore_tmas))^2),data= dataOULAD,weights = wt)
+summary(wlsmod3)
+par(mfrow=c(2,2))
+plot(wlsmod1)
+
+
+
+(m3w <- mean(residuals(wlsmod3))) # Exsiste linealidad 
+(n3w <- tseries::jarque.bera.test(wlsmod3$residuals)) # No Existe Normalidad en los residuos
+(h3w <- lmtest::bptest(wlsmod3)) # Existe Homocedasticidad
+
+```
+
+__Modelo 1__
+
+El cual contiene las variables: region, final_result, wscore_tmas y sum_click_total.
+
+$\scriptsize\operatorname{\widehat{score\_exam}} = 60.002 - 1.546(\operatorname{region}_{\operatorname{North}}) - 2.291(\operatorname{region}_{\operatorname{South}}) - 2.25(\operatorname{region}_{\operatorname{West}}) - 40.542(\operatorname{final\_result}_{\operatorname{Fail}}) - 17.303(\operatorname{final\_result}_{\operatorname{Pass}}) + 0.381(\operatorname{wscore\_tmas}) - 0.495(\operatorname{sum\_click\_total}_{\operatorname{Low}}) + 0.017(\operatorname{sum\_click\_total}_{\operatorname{Moderate}})$
+
+__Modelo 2__
+
+El cual contiene las variables region, final_result wscore_tmas, sum_click_total,agregando efectos de interacion entre y final_result con wscore_tmas y también entre wscore_tmas y sum_click_totalLow.
+
+
+
+$\scriptsize\operatorname{\widehat{score\_exam}} = 83.73 - 1.639(\operatorname{region}_{\operatorname{North}}) - 2.178(\operatorname{region}_{\operatorname{South}}) - 1.316(\operatorname{region}_{\operatorname{West}}) - 64.502(\operatorname{final\_result}_{\operatorname{Fail}}) - 51.867(\operatorname{final\_result}_{\operatorname{Pass}}) + 0.104(\operatorname{wscore\_tmas}) + 14.88(\operatorname{sum\_click\_total}_{\operatorname{Low}}) + 8.72(\operatorname{sum\_click\_total}_{\operatorname{Moderate}}) + 0.232(\operatorname{final\_result}_{\operatorname{Fail}} \times \operatorname{wscore\_tmas}) + 0.427(\operatorname{final\_result}_{\operatorname{Pass}} \times \operatorname{wscore\_tmas}) - 0.233(\operatorname{wscore\_tmas} \times \operatorname{sum\_click\_total}_{\operatorname{Low}}) - 0.118(\operatorname{wscore\_tmas} \times \operatorname{sum\_click\_total}_{\operatorname{Moderate}})$
+
+__Modelo 3__
+
+En este se icluye un efecto cuadrático en la variable wscore_tmas y se obtiene:
+
+
+
+$\scriptsize\operatorname{\widehat{score\_exam}} = 88.135 - 2.009(\operatorname{region}_{\operatorname{North}}) - 2.243(\operatorname{region}_{\operatorname{South}}) - 1.349(\operatorname{region}_{\operatorname{West}}) - 74.232(\operatorname{final\_result}_{\operatorname{Fail}}) - 56.856(\operatorname{final\_result}_{\operatorname{Pass}}) + 0.037(\operatorname{wscore\_tmas}) + 12.892(\operatorname{sum\_click\_total}_{\operatorname{Low}}) + 8.262(\operatorname{sum\_click\_total}_{\operatorname{Moderate}}) + 0.004(\operatorname{wscore\_tmas^2}) + 0.385(\operatorname{final\_result}_{\operatorname{Fail}} \times \operatorname{wscore\_tmas}) + 0.493(\operatorname{final\_result}_{\operatorname{Pass}} \times \operatorname{wscore\_tmas}) - 0.203(\operatorname{wscore\_tmas} \times \operatorname{sum\_click\_total}_{\operatorname{Low}}) - 0.114(\operatorname{wscore\_tmas} \times \operatorname{sum\_click\_total}_{\operatorname{Moderate}})$
+
+Obs: se representa a la variable cuadratica centrada en la media como $\ wscore\_tmas^2$.
+
+__Validación de los Supuestos__
+
+Para las pruebas de Normalidad se uso Jarque-Bera test mientras que para homocedasticidad se usó Breusch-Pagan Test.
+
+En la siguiente Tabla se presentan las pruebas de normalidad, heterocedasticidad, y la media de los errores.
+
+
+```{r,include=F,echo=F}
+
+#############################################################################################################
+#TABLAS CON LOS VALORES P DE LAS PRUEBAS
+
+tabla1 <- data.frame("Media " = c(m1,m2,m3),
+                     "Linealidad" = c("Si","Si","Si"),
+                     "Valor p Normalidad" = c(n1$p.value,n2$p.value,n3$p.value),
+                     "Normalidad" = c("Si","Si","Si"),
+                     "Valor p Homocedasticidad" = c(h1$p.value,h2$p.value,h3$p.value),
+                     "Homocedasticidad" = c("No","No","No"))
+colnames(tabla1) <- c("Media","Linealidad","Valor p N","Normalidad","Valor p H","Homocedasticidad")
+row.names(tabla1) <- c("Modelo 1", "Modelo 2", "Modelo 3")
+
+tabla2 <- data.frame("Media " = c(m1w,m2w,m3w),
+                     "Linealidad" = c("Si","Si","Si"),
+                     "Valor p Normalidad" = c(n1w$p.value,n2w$p.value,n3w$p.value),
+                     "Normalidad" = c("Si","Si","Si"),
+                     "Valor p Homocedasticidad" = c(h1w$p.value,h2w$p.value,h3w$p.value),
+                     "Homocedasticidad" = c("Si","Si","Si"))
+
+colnames(tabla2) <- c("Media","Linealidad","Valor p N","Normalidad","Valor p H","Homocedasticidad")
+row.names(tabla2) <- c("WLSModelo 1", "WLSModelo 2", "WLSModelo 3")
+```
+
+```{r, echo=F}
+knitr::kable(tabla1,
+             caption = "Comprobación de los supuestos",
+             aling=c(rep("c",6)),
+             digits = 3,row.names = T)
+
+```
+Para corregir problemas de Heterocedasticidad se utiliza la estimación por Mínimos Cuadrados Ponderados(WLS) luego la validación de los supuestos se pueden ver en la siguiente tabla:
+
+```{r, echo=F}
+knitr::kable(tabla2,
+             caption = "Comprobación de los supuestos para Modelos(WLS)",
+             aling=c(rep("c",6)),
+             digits = 3,row.names = T)
+```
+
+Ya que todos los modelos propuestos tienen los supuestos en los errores formalmente validados se procede a usar el criterio AIC() para seleccionar el "mejor" modelo.
+
+Se obtuvieron los siguientes AIC:
+
+```{r, echo=F, include=F}
+#SELECCION DEL MODELO USANDO AIC
+
+aic <- as.data.frame(t(c(AIC(wlsmod1),AIC(wlsmod2),AIC(wlsmod3))))
+colnames(aic) <- c("Modelo1 WLS","Modelo2 WLS","Modelo3 WLS")
+row.names(aic) <- c("AIC")
+```
+```{r,echo=F}
+knitr::kable(aic,
+             caption = "AIC de los Modelos",
+             aling=c(rep("c",3)),
+             digits = 3,row.names = T)
+
+```
+
+Basandonos en el criterio de selección AIC nos quedamos con el modelo Modelo3 WLS.
+
+__Modelo 3 WLS:__
+
+$\scriptsize\operatorname{\widehat{score\_exam}} = 88.127 - 2.112(\operatorname{region}_{\operatorname{North}}) - 2.268(\operatorname{region}_{\operatorname{South}}) - 1.423(\operatorname{region}_{\operatorname{West}}) - 74.38(\operatorname{final\_result}_{\operatorname{Fail}}) - 56.949(\operatorname{final\_result}_{\operatorname{Pass}}) + 0.037(\operatorname{wscore\_tmas}) + 13.094(\operatorname{sum\_click\_total}_{\operatorname{Low}}) + 8.324(\operatorname{sum\_click\_total}_{\operatorname{Moderate}}) + 0.004(\operatorname{wscore\_tmas^2}) + 0.388(\operatorname{final\_result}_{\operatorname{Fail}} \times \operatorname{wscore\_tmas}) + 0.495(\operatorname{final\_result}_{\operatorname{Pass}} \times \operatorname{wscore\_tmas}) - 0.206(\operatorname{wscore\_tmas} \times \operatorname{sum\_click\_total}_{\operatorname{Low}}) - 0.114(\operatorname{wscore\_tmas} \times \operatorname{sum\_click\_total}_{\operatorname{Moderate}})$
+
+__Interpretación de los coeficientes__
+
++ $\hat\beta_{0}$: La calificación final promedio para un estudiante que pertenece al Este de la región, aprobó con distinciones, obtuvo 0 en las asignaciones marcadas por el tutor, y tuvo una participacion alta en la plataforma es 88.127.
+
++ $\hat\beta_{1}$: La calificación final promedio para un estudiante que pertenece al Norte de la región, comparada con uno que pertenece al Este bajo las mismas condiciones es menor en 2.11 puntos.
+
++ $\hat\beta_{2}$: La calificación final promedio para un estudiante que pertenece al Sur de la región, comparada con uno que pertenece al Este bajo las mismas condiciones es menor en 2.26 puntos.
+
++ $\hat\beta_{3}$: La calificación final promedio para un estudiante que pertenece al Oeste de la región, comparada con uno que pertenece al Este bajo las mismas condiciones es menor en 1.42 puntos.
+
++ $\hat\beta_{4}$: La calificación final promedio para un estudiante que no aprobó el modulo comparada con uno que  aprobó con distinciones, bajo las mismas condiciones, es menor en 74.37 puntos. 
+
++ $\hat\beta_{5}$: La calificación final promedio para un estudiante que aprobó el modulo comparada con uno que aprobó con distinciones, bajo las mismas condiciones, es menor en -56.94 puntos. 
+
++ $\hat\beta_{6}$:  Cuando se aumenta en una unidad la calificación en las  asignaciones marcadas por el tutor bajo las mismas condiciones, la calificación final promedio aumenta en 0.03 puntos.
+
++ $\hat\beta_{7}$: La calificación final promedio para un estudiante que tuvo una participacion baja comparada con uno que tuvo una participacion alta bajo las mismas condiciones difiere en 13.09
+
++ $\hat\beta_{8}$: La calificación final promedio para un estudiante que tuvo una participacion moderada comparada con uno que tuvo una participacion alta bajo las mismas condiciones es mayor en 8.32.
+
+
+__Inferencias__
+
+Se realizan Intervalos de Cofianza Post-Seleccion y se obtiene:
+
+```{r, echo=F, include=FALSE}
+# Ya que se realizo el modelamiento con la base de datos completa se realizan Inferencias PoSI 
+
+library(PoSI)
+#mod <- lm(score_exam~.,data = dataOULAD)
+
+disModfin <- model.matrix(wlsmod3)
+set.seed(42)
+PoSImod <- PoSI(disModfin)
+summary(PoSImod)
+
+#IC con 95% de confianza
+
+LI <- coef(wlsmod3)-summary(PoSImod)[1,1]*summary(wlsmod3)$coefficients[,2]
+LS <- coef(wlsmod3)+summary(PoSImod)[1,1]*summary(wlsmod3)$coefficients[,2]
+Ic <- cbind(LI,LS)
+Ic
+
+```
+```{r, echo=F}
+knitr::kable(Ic)
+```
+Mediante Intervalos de Post Selección se´tiene que los coeficientes significativos son los de final_resultFail, final_resultPass, el efecto de interacción final_resultPassxwscore_tmas y wscore_tmasxsum_click_totalLow. 
+
+__Predicción__
+
+se desea predecir el puntaje promedio en el examen para un estudiante con baja interacción en el entorno virtual vs uno con alta participación en el entorno virtual.
+
+Se predice que para un estudiante que tuvo una alta participación de la Región Este que aprobó y que obtuvo una calificación de 90 en las asignaciones marcadas por el tutor, tendrá una calificación en el examen final entre [75.56,82.45] el 95% de las veces, mientras que para aquel que tenga una participación baja, bajo las mismas condiciones obtendrá una calificación final entre [69.57,77.63] el 95% de las veces.
+
+
+
+
